@@ -100,87 +100,101 @@ arg_parser.add_argument(
 	help=str('Specify city for weather. If not given, taken from ipinfo.io.'),
 	nargs='+', required=False)
 
+arg_parser.add_argument(
+	'-s', '--skipweather', action='store_true',
+	help='Skip fetching the weather from web. Uses only normal weather.',
+	required=False)
+
+arg_parser.add_argument(
+	'-i', '--intervals', type=str,
+	help='Skip fetching the weather from web. Uses only normal weather. Overwrites the --time argument.',
+	nargs='+',required=False)
+
 args = arg_parser.parse_args()
 
-if args.city:
+if not args.skipweather:
+	# assign city only if fetching
+	if args.city:
 
-	city = ' '.join(args.city).replace(' ', '%20')
-
-else:
-
-	try:
-
-		city_json_url = 'http://ipinfo.io/json'
-
-		city_json = urlopen(city_json_url).read().decode('utf-8')
-
-		city = json.loads(city_json)
-		city = city['city'].replace(' ', '%20')
-
-	except urllib.error.URLError:
-
-		sys.stderr.write(
-			'Finding city from IP failed! Specify city manually with --city.')
-
-		sys.exit(1)
-
-	except ValueError:
-
-		sys.stderr.write(
-			'Finding city from IP failed! Specify city manually with --city.')
-
-		sys.exit(1)
-
-	if not city:
-
-		sys.stderr.write(
-			'Finding city from IP failed! Specify city manually with --city.')
-
-		sys.exit(1)
-
-# Check if city is valid
-
-try:
-
-	city_check_json_url = r'https://query.yahooapis.com/v1/public/yql?q=select%20%2A%20from%20geo.places(5)%20where%20text%3D"' + city + r'"&format=json'
-
-	city_check_json = urlopen(city_check_json_url).read().decode('utf-8')
-
-	city_check_json = json.loads(city_check_json)
-
-	if city_check_json['query']['results'] in (None, 'null'):
-
-		city_is_invalid = True
+		city = ' '.join(args.city).replace(' ', '%20')
 
 	else:
 
-		city_is_invalid = False
+		try:
 
-	city_is_invalid = city_check_json['query']['results'] in (None, 'null')
+			city_json_url = 'http://ipinfo.io/json'
 
-	city_checked = True
+			city_json = urlopen(city_json_url).read().decode('utf-8')
 
-except:
+			city = json.loads(city_json)
+			city = city['city'].replace(' ', '%20')
 
-	trace_city_check = '[City checking]\n' + traceback.format_exc()
+		except urllib.error.URLError:
 
-	city_checked = True
+			sys.stderr.write(
+				'Finding city from IP failed! Specify city manually with --city.')
 
-	city_is_invalid = True  # exit, but after printing stack trace
+			sys.exit(1)
 
+		except ValueError:
+
+			sys.stderr.write(
+				'Finding city from IP failed! Specify city manually with --city.')
+
+			sys.exit(1)
+
+		if not city:
+
+			sys.stderr.write(
+				'Finding city from IP failed! Specify city manually with --city.')
+
+			sys.exit(1)
+
+	# Check if city is valid
+
+	try:
+
+		city_check_json_url = r'https://query.yahooapis.com/v1/public/yql?q=select%20%2A%20from%20geo.places(5)%20where%20text%3D"' + city + r'"&format=json'
+
+		city_check_json = urlopen(city_check_json_url).read().decode('utf-8')
+
+		city_check_json = json.loads(city_check_json)
+
+		if city_check_json['query']['results'] in (None, 'null'):
+
+			city_is_invalid = True
+
+		else:
+
+			city_is_invalid = False
+
+		city_is_invalid = city_check_json['query']['results'] in (None, 'null')
+
+		city_checked = True
+
+	except:
+
+		trace_city_check = '[City checking]\n' + traceback.format_exc()
+
+		city_checked = True
+
+		city_is_invalid = True  # exit, but after printing stack trace
+
+	else:
+
+		trace_city_check = '[City checking] No error.'
+
+	finally:
+
+		print(trace_city_check)
+
+	if city_checked and city_is_invalid:
+
+		sys.stderr.write('Invalid city! Please check the name.')
+
+		sys.exit(1)
 else:
-
-	trace_city_check = '[City checking] No error.'
-
-finally:
-
-	print(trace_city_check)
-
-if city_checked and city_is_invalid:
-
-	sys.stderr.write('Invalid city! Please check the name.')
-
-	sys.exit(1)
+	print('Skipping weather, thus no city checking.')
 
 use_time = bool(args.time)
 
@@ -227,6 +241,8 @@ if args.naming:
 # Functions
 
 def get_time_of_day(level=3):
+
+	#TODO use intervals given
 
 	'''
 	For detail level 2:
@@ -293,7 +309,7 @@ def get_time_of_day(level=3):
 
 			return 'night'
 
-def get_file_name(weather_name, time=False):
+def get_file_name(weather_name, time=False, skipweather=False):
 
 	summaries = {'rain': 'drizzle rain shower',
 				 'wind': 'breez gale wind',  # breez matches both breeze and breezy
@@ -301,19 +317,21 @@ def get_file_name(weather_name, time=False):
 				 'snow': 'snow',
 				 'cloudy': 'cloud'}
 
-	def get_weather_summary():
+	def get_weather_summary(skipweather=False):
 
-		for summary, words in summaries.items():
+		if not skipweather:
 
-			for word in words.split():
+			for summary, words in summaries.items():
 
-				if word in weather_name:
+				for word in words.split():
 
-					return summary
+					if word in weather_name:
+
+						return summary
 
 		return 'normal'
 
-	weather_file = get_weather_summary() + file_format
+	weather_file = get_weather_summary(skipweather) + file_format
 
 	if time:
 
@@ -322,11 +340,16 @@ def get_file_name(weather_name, time=False):
 	return weather_file
 
 
-def check_if_all_files_exist(time=False, level=3):
+def check_if_all_files_exist(time=False, level=3, skipweather=False):
 
 	all_exist = True
 
 	required_files = ['rain', 'snow', 'normal', 'cloudy', 'wind', 'thunder']
+
+	if skipweather:
+
+		required_files = [ 'normal' ]
+
 
 	if time:
 
@@ -361,7 +384,7 @@ def check_if_all_files_exist(time=False, level=3):
 	return all_exist
 
 
-if not check_if_all_files_exist(time=use_time, level=args.time):
+if not check_if_all_files_exist(time=use_time, level=args.time, skipweather=args.skipweather):
 
 	sys.stderr.write(
 		'\nNot all required files were found.\n %s' % NAMING_RULES.format(
@@ -388,22 +411,28 @@ def restart_program():
 while True:
 
 	try:
+		weather = 'normal'
+		if not args.skipweather:
 
-		weather_json_url = r'https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20weather.forecast%20where%20woeid%20in%20(select%20woeid%20from%20geo.places(1)%20where%20text%3D%22' + city + '%22)&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys'
+			weather_json_url = r'https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20weather.forecast%20where%20woeid%20in%20(select%20woeid%20from%20geo.places(1)%20where%20text%3D%22' + city + '%22)&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys'
 
-		weather_json = json.loads(urlopen(weather_json_url).read().decode('utf-8'))
+			weather_json = json.loads(urlopen(weather_json_url).read().decode('utf-8'))
 
-		weather = str(weather_json['query']['results']['channel']['item']['condition']['text']).lower()
+			weather = str(weather_json['query']['results']['channel']['item']['condition']['text']).lower()
 
-		city_with_area=str(weather_json['query']['results']['channel']['location']['city']) + str(weather_json['query']['results']['channel']['location']['region'])
+			city_with_area=str(weather_json['query']['results']['channel']['location']['city']) + str(weather_json['query']['results']['channel']['location']['region'])
 
-		print(weather)
-		print(city_with_area)
+			print(weather)
+			print(city_with_area)
 
-		print(os.path.join(walls_dir, get_file_name(weather, time=use_time)))
+		else:
+
+			print('Skipping weather, using ' + weather + '.')
+
+		print(os.path.join(walls_dir, get_file_name(weather, time=use_time, skipweather=args.skipweather)))
 
 		Desktop.set_wallpaper(
-			os.path.join(walls_dir, get_file_name(weather, time=use_time)))
+			os.path.join(walls_dir, get_file_name(weather, time=use_time, skipweather=args.skipweather)))
 
 	except urllib.error.URLError:
 
