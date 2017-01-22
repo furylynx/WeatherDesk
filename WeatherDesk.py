@@ -107,12 +107,12 @@ arg_parser.add_argument(
 
 arg_parser.add_argument(
 	'-i', '--intervals', type=str,
-	help='Skip fetching the weather from web. Uses only normal weather. Overwrites the --time argument.',
-	nargs='+',required=False)
+	help='Skip fetching the weather from web. Uses only normal weather. Overwrites the --time argument.',required=False)
 
 args = arg_parser.parse_args()
 
 if not args.skipweather:
+
 	# assign city only if fetching
 	if args.city:
 
@@ -196,7 +196,11 @@ if not args.skipweather:
 else:
 	print('Skipping weather, thus no city checking.')
 
-use_time = bool(args.time)
+use_time = bool(args.time) or bool(args.intervals)
+use_intervals = bool(args.intervals)
+intervals = str(args.intervals).split(':')
+
+
 
 if args.dir:
 
