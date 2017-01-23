@@ -198,8 +198,91 @@ else:
 
 use_time = bool(args.time) or bool(args.intervals)
 use_intervals = bool(args.intervals)
-intervals = str(args.intervals).split(':')
 
+intervals = None
+
+if use_intervals:
+	# parse intervals
+
+	intervals_str = str(args.intervals).split(':')
+
+	#TODO check correct format
+	if len(intervals_str) < 2 or len(intervals_str) > 4:
+
+		sys.stderr.write('Invalid intervals! Please check the number of intervals and the separator used.')
+
+		sys.exit(1)
+
+	intervals = [];
+	for interv in intervals_str:
+
+		try:
+
+			intervals.append(int(interv))
+
+		except ValueError:
+
+			sys.stderr.write('Invalid value for interval! Please check the intervals.')
+
+			sys.exit(1)
+
+
+if use_time and not use_intervals:
+	# set intervals if not specified by arg
+
+	'''
+	For detail level 2:
+	06 to 20: day
+	20 to 06: night
+	'''
+
+	'''
+	For detail level 3:
+	06 to 17: day
+	17 to 20: evening
+	20 to 06: night
+	'''
+
+	'''
+	For detail level 4:
+	06 to 08: morning
+	08 to 17: day
+	17 to 20: evening
+	20 to 06: night
+	'''
+
+	if args.time == 2:
+
+		intervals = [6,20]
+
+	elif args.time == 3:
+
+		intervals = [6,17,20]
+
+	elif args.time == 4:
+
+		intervals = [6,8,17,20]
+
+	else:
+
+		intervals = [6,20]
+
+len_intervals = 0
+
+#print intervals
+if intervals is None:
+
+	print('No times used.')
+
+else:
+
+	len_intervals = len(intervals)
+
+	print('Using times:')
+
+	for interv in intervals:
+
+		print(interv)
 
 
 if args.dir:
@@ -244,40 +327,19 @@ if args.naming:
 
 # Functions
 
-def get_time_of_day(level=3):
-
-	#TODO use intervals given
-
-	'''
-	For detail level 2:
-	06 to 20: day
-	20 to 06: night
-	'''
-
-	'''
-	For detail level 3:
-	06 to 17: day
-	17 to 20: evening
-	20 to 06: night
-	'''
-
-	'''
-	For detail level 4:
-	06 to 08: morning
-	08 to 17: day
-	17 to 20: evening
-	20 to 06: night
-	'''
+def get_time_of_day(intervals):
 
 	current_time = datetime.datetime.now()
 
+	level = len(intervals)
+
 	if level == 3:
 
-		if current_time.hour in range(6, 17):
+		if current_time.hour in range(intervals[0], intervals[1]):
 
 			return 'day'
 
-		elif current_time.hour in range(17, 20):
+		elif current_time.hour in range(intervals[1], intervals[2]):
 
 			return 'evening'
 
@@ -287,15 +349,15 @@ def get_time_of_day(level=3):
 
 	elif level == 4:
 
-		if current_time.hour in range(6, 8):
+		if current_time.hour in range(intervals[0], intervals[1]):
 
 			return 'morning'
 
-		elif current_time.hour in range(8, 17):
+		elif current_time.hour in range(intervals[1], intervals[2]):
 
 			return 'day'
 
-		elif current_time.hour in range(17, 20):
+		elif current_time.hour in range(intervals[2], intervals[3]):
 
 			return 'evening'
 
@@ -305,7 +367,7 @@ def get_time_of_day(level=3):
 
 	else:
 
-		if current_time.hour in range(6, 20):
+		if current_time.hour in range(intervals[0], intervals[1]):
 
 			return 'day'
 
@@ -313,7 +375,7 @@ def get_time_of_day(level=3):
 
 			return 'night'
 
-def get_file_name(weather_name, time=False, skipweather=False):
+def get_file_name(weather_name, intervals, skipweather=False):
 
 	summaries = {'rain': 'drizzle rain shower',
 				 'wind': 'breez gale wind',  # breez matches both breeze and breezy
@@ -337,9 +399,9 @@ def get_file_name(weather_name, time=False, skipweather=False):
 
 	weather_file = get_weather_summary(skipweather) + file_format
 
-	if time:
+	if intervals is not None:
 
-		return get_time_of_day(args.time) + '-' + weather_file
+		return get_time_of_day(intervals) + '-' + weather_file
 
 	return weather_file
 
@@ -388,7 +450,7 @@ def check_if_all_files_exist(time=False, level=3, skipweather=False):
 	return all_exist
 
 
-if not check_if_all_files_exist(time=use_time, level=args.time, skipweather=args.skipweather):
+if not check_if_all_files_exist(time=use_time, level=len_intervals, skipweather=args.skipweather):
 
 	sys.stderr.write(
 		'\nNot all required files were found.\n %s' % NAMING_RULES.format(
@@ -433,10 +495,10 @@ while True:
 
 			print('Skipping weather, using ' + weather + '.')
 
-		print(os.path.join(walls_dir, get_file_name(weather, time=use_time, skipweather=args.skipweather)))
+		file_name =  get_file_name(weather, intervals, skipweather=args.skipweather)
+		print(os.path.join(walls_dir,file_name))
 
-		Desktop.set_wallpaper(
-			os.path.join(walls_dir, get_file_name(weather, time=use_time, skipweather=args.skipweather)))
+		Desktop.set_wallpaper(os.path.join(walls_dir, file_name))
 
 	except urllib.error.URLError:
 
